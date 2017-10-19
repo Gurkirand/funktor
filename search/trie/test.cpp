@@ -1,4 +1,4 @@
-#include "Node.h"
+#include "Trie.h"
 #include <string>
 #include <iostream>
 #include <vector>

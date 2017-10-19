@@ -1,5 +1,5 @@
 #include <iostream>
-#include "Node.h"
+#include "Trie.h"
 #include <stack>
 
 using namespace std;

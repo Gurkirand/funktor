@@ -1,5 +1,5 @@
-#ifndef TRIE_node_h
-#define TRIE_node_h
+#ifndef TRIE_H
+#define TRIE_H
 #define TRIE_BASE_LEN 37
 #define TRIE_ALPHA_LEN 26
 #define TERMINAL_CHAR "$"
