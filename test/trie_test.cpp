@@ -1,4 +1,4 @@
-#include "Trie.h"
+#include "include/trie/Trie.h"
 #include <string>
 #include <iostream>
 #include <vector>
@@ -6,7 +6,6 @@
 #include <tuple>
 
 using namespace std;
-typedef string::iterator str_itr;
 
 int main()
 {
@@ -18,5 +17,19 @@ int main()
 		trie.insert(keys[i], value);
 	}
 	trie.print();
+
+	TriePath triePath(trie);
+	string key = keys[0];
+	str_itr keyItr = key.begin(),
+	        keyEnd = key.end();
+	while (keyItr != keyEnd)
+	{
+		if (!triePath.update_state(*keyItr))
+		{
+			cout << "FAILED" << endl;
+			break;
+		}
+		keyItr++;
+	}
 }
 
