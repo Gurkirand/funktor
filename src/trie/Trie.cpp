@@ -1,38 +1,18 @@
 #include <iostream>
-#include "Trie.h"
+#include "../../include/trie/trie.h"
 
-using namespace std;
+using std::string;
+using std::vector;
+using std::stack;
+using std::bitset;
+using std::cout;
+using std::endl;
+
 typedef string::size_type str_size;
 const char TERMINAL_CHAR = TRIE_TERMINAL_CHAR;
 const char ERROR_CHAR = '!';
 
-Node::Node() {}
-
-Node::Node(string _key)
-{
-	key = _key;
-	parent = nullptr;
-}
-
-Node::Node(string _key, Node* _parent)
-{
-	key = _key;
-	parent = _parent;
-}
-
-Node::Node(string _key, string _value)
-{
-	key = _key;
-	value = _value;
-	parent = nullptr;
-}
-
-Node::Node(string _key, string _value, Node* _parent)
-{
-	key = _key;
-	value = _value;
-	parent = _parent;
-}
+Node::Node(string _key, Node* _parent, string _value): key(_key), parent(_parent), value(_value) {}
 
 Node::~Node(void)
 {
@@ -43,11 +23,23 @@ Node::~Node(void)
 	}
 }
 
+int Node::find_index(int ord)
+{
+	int i = 0;
+	int index = 0;
+	while (i < ord)
+	{
+		index += bitmap[i];
+		i++;
+	}
+
+	return  index;
+}
+
 bool Node::contains(char c)
 {
-	int ord = custom_ordinal(c);
-	if (bitmap[ord] == 0)
-	{
+	int ord = Trie::custom_ordinal(c);
+	if (bitmap[ord] == 0) {
 		return false;
 	}
 	return true;
@@ -55,22 +47,21 @@ bool Node::contains(char c)
 
 Node* Node::get(char c)
 {
-	int ord = custom_ordinal(c);
-	if (bitmap[ord] == 0)
-	{
+	int ord = Trie::custom_ordinal(c);
+	if (bitmap[ord] == 0) {
 		return nullptr;
 	}
-	return children[count_bits(bitmap, ord)];
+	return children[find_index(ord)];
 }
 
 bool Node::insert(Node *node, char c)
 {
-	int ord = custom_ordinal(c),
-	    pos = count_bits(bitmap, ord);
-	if (bitmap[ord] == 1)
-	{
+	int ord = Trie::custom_ordinal(c),
+	    pos = find_index(ord);
+	if (bitmap[ord] == 1) {
 		return false;
 	}
+
 	children.insert(children.begin() + pos, node);
 	node->parent = this;
 	bitmap[ord] = 1;
@@ -79,12 +70,12 @@ bool Node::insert(Node *node, char c)
 
 bool Node::insert(string key, string value)
 {
-	int ord = custom_ordinal(*(key.begin())),
-	    pos = count_bits(bitmap, ord);
-	if (bitmap[ord] == 1)
-	{
+	int ord = Trie::custom_ordinal(*(key.begin())),
+	    pos = find_index(ord);
+	if (bitmap[ord] == 1) {
 		return false;
 	}
+
 	Node *node = new Node(key, this);
 	node->insert_terminal(value);
 	children.insert(children.begin() + pos, node);
@@ -92,16 +83,28 @@ bool Node::insert(string key, string value)
 	return true;
 }
 
+bool Node::remove(Node *node)
+{
+	int ord = Trie::custom_ordinal(*(node->key.begin())),
+	    pos = find_index(ord);
+	if (bitmap[ord] == 0) {
+		return false;
+	}
+
+	children.erase(children.begin() + pos);
+	bitmap[ord] = 0;
+	return true;
+}
+
 bool Node::insert_terminal(string value)
 {
 	int ord = TRIE_BASE_LEN - 1;
-	if (bitmap[ord] == 1)
-	{
+	if (bitmap[ord] == 1) {
 		return false;
 	}
 
 	bitmap[ord] = 1;
-	children.push_back(new Node(string(&TERMINAL_CHAR), value, this));
+	children.push_back(new Node(string(&TERMINAL_CHAR), this, value));
 	return true;
 }
 
@@ -115,14 +118,11 @@ bool Node::compare(Node& node)
 	return key.compare(node.key);
 }
 
-Trie::Trie(void)
-{
-	base.resize(TRIE_BASE_LEN);
-}
+Trie::Trie(void) {}
 
 Trie::~Trie(void)
 {
-	node_vec::size_type size = base.size();
+	size_t size = sizeof(base) / sizeof(base[0]);
 	for (int i = 0; i < size; i++)
 	{
 		delete base[i];
@@ -132,10 +132,9 @@ Trie::~Trie(void)
 bool Trie::insert(const string& _key, const string value)
 {
 	string key = create_valid_key(_key);
-
 	str_itr keyItr = key.begin(),
 	        keyEnd = key.end();
-	int ord = custom_ordinal(*keyItr);
+	int ord = Trie::custom_ordinal(*keyItr);
 
 	if (base[ord] == nullptr)
 	{
@@ -145,7 +144,6 @@ bool Trie::insert(const string& _key, const string value)
 	}
 
 	Node *currNode = base[ord],
-		*prevNode = nullptr,
 		*tempNode;
 	string *compKey;
 	int pref;
@@ -154,55 +152,77 @@ bool Trie::insert(const string& _key, const string value)
 		compKey = &currNode->key;
 		pref = prefix_compare(keyItr, keyEnd, 
 				*compKey);
-		if (pref == (keyEnd - keyItr))
+		if (pref != compKey->size())
 		{
-			return currNode->insert_terminal(value);
+			string sharedPref = string(keyItr, keyItr + pref),
+			       insertSuff = string(keyItr + pref, keyEnd),
+			       currSuff = string(compKey->begin() + pref, compKey->end());
+			_rotation_insertion(sharedPref, insertSuff, value, currNode, currSuff);
+			return true;
 		}
-		else if (pref == compKey->size())
+		else
 		{
-			prevNode = currNode;
+			if (pref == (keyEnd - keyItr))
+			{
+				return currNode->insert_terminal(value);
+			}
+
 			tempNode = currNode->get(*(keyItr + pref));
-			if (tempNode == nullptr)
+			if (!tempNode) 
 			{
 				return currNode->insert(
 					string(keyItr + pref, keyEnd), value);
 			}
 			currNode = tempNode;
 		}
-		else
-		{
-			currNode->key = string(
-					compKey->begin() + pref, compKey->end());
-			tempNode = new Node(string(keyItr, keyItr + pref), currNode->parent);
-			tempNode->children.push_back(currNode);
-			currNode->parent = tempNode;
-			tempNode->bitmap[
-				custom_ordinal(*(compKey->begin() + pref))] = 1;
-			tempNode->insert(string(keyItr + pref, keyEnd), value);
-			if (prevNode == nullptr)
-			{
-				base[custom_ordinal(*(keyItr))] = tempNode;
-			}
-			else
-			{
-				prevNode->insert(tempNode, *(keyItr));
-			}
-			return true;
-		}
+		
 		keyItr += pref;
 	}
 
 	return true;
 }
 
+void Trie::_rotation_insertion(string& sharedPref,
+							   string& insertSuff,
+							   const string& value,
+							   Node* root,
+							   string& rootSuff)
+{
+	Node* pivot = new Node(sharedPref, root->parent);
+	pivot->children.push_back(root);
+	root->parent = pivot;
+
+	if (pivot->parent) 
+	{
+		pivot->parent->remove(root);
+		pivot->parent->insert(pivot, *sharedPref.begin());
+	}
+	else 
+	{
+		base[Trie::custom_ordinal(*sharedPref.begin())] = pivot;
+	}
+	
+	root->key = rootSuff;
+	pivot->bitmap[
+		Trie::custom_ordinal(*(rootSuff.begin()))] = 1;
+
+	if (insertSuff.empty()) 
+	{
+		pivot->insert(insertSuff, value);
+	}
+	else 
+	{
+		pivot->insert_terminal(value);
+	}
+}
+
 Node* Trie::get(const string& _key)
 {
 	string key = create_valid_key(_key) + "$";
-	Node *currNode = base[custom_ordinal(*key.begin())];
+	Node *currNode = base[Trie::custom_ordinal(*key.begin())];
 	str_itr keyItr = key.begin(),
 	        keyEnd = key.end();
 	int pref;
-
 	while (currNode != nullptr && keyItr < keyEnd - 1)
 	{
 		keyItr += prefix_compare(keyItr, keyEnd, currNode->key);
@@ -214,19 +234,20 @@ Node* Trie::get(const string& _key)
 void Trie::print()
 {
 	cout << endl;
-	int i;
+	size_t size = sizeof(base) / sizeof(base[0]),
+	       i;
 	node_vec baseNodes;
-	for (i = 0; i < base.size(); i ++)
+	for (i = 0; i < size; i ++)
 	{
-		if (base[i] != nullptr)
+		if (base[i])
 		{
 			baseNodes.push_back(base[i]);
 		}
 	}
-	print(baseNodes, "");
+	_print(baseNodes, "");
 }
 
-void Trie::print(node_vec nodes, string tabs)
+void Trie::_print(node_vec nodes, string tabs)
 {
 	int printIndex;
 	Node *currNode;
@@ -235,11 +256,13 @@ void Trie::print(node_vec nodes, string tabs)
 	for (int i = 0; i < nodes.size(); i++)
 	{
 		currNode = nodes[i];
+
 		if (currNode->children.empty())
 		{
 			cout << tabs << currNode->key << endl;
 			continue;
 		}
+
 		start = currNode->children.begin();
 		half = currNode->children.begin() + 
 			(currNode->children.size() / 2);
@@ -248,9 +271,9 @@ void Trie::print(node_vec nodes, string tabs)
 		back = node_vec(half, end);
 
 		cout << endl;
-		print(front, tabs + "\t");
+		_print(front, tabs + "\t");
 		cout << tabs << nodes[i]->key << endl;
-		print(back, tabs + "\t");
+		_print(back, tabs + "\t");
 		continue;
 	}
 	return;
@@ -317,7 +340,7 @@ void Trie::_push_children(stack<NodeVisitor>& visited, Node *node)
 }
 
 
-char create_valid_char(char c)
+char Trie::create_valid_char(char c)
 {
 	if ((c >= '0' && c <= '9') || 
 			(c >= 'A' && c <= 'Z')
@@ -332,13 +355,12 @@ char create_valid_char(char c)
 	return ERROR_CHAR;
 }
 
-string create_valid_key(const string& key)
+string Trie::create_valid_key(const string& key)
 {
 	char keycpy[key.size() + 1], c;
 	string::const_iterator itr = key.begin(),
 	        end = key.end();
 	int i = 0;
-
 	while (itr != end)
 	{
 		c = create_valid_char(*itr);
@@ -359,7 +381,7 @@ string create_valid_key(const string& key)
 	return string((char *) keycpy);
 }
 
-int custom_ordinal(const char& c)
+int Trie::custom_ordinal(const char& c)
 {
 	if (c == '$')
 	{
@@ -380,20 +402,7 @@ int custom_ordinal(const char& c)
 	return -1;
 }
 
-int count_bits(bitset<TRIE_BASE_LEN> bitmap, int index)
-{
-	int i = 0;
-	int count = 0;
-	while (i < index)
-	{
-		count += bitmap[i];
-		i++;
-	}
-
-	return  count;
-}
-
-int prefix_compare(str_itr itr1, str_itr end1, str_itr itr2, str_itr end2)
+int Trie::prefix_compare(str_itr itr1, str_itr end1, str_itr itr2, str_itr end2)
 {
 	int end = (end1 - itr1) < (end2 - itr2) ? (end1 - itr1) : (end2 - itr2);
 	str_itr begin1 = itr1;
@@ -410,22 +419,19 @@ int prefix_compare(str_itr itr1, str_itr end1, str_itr itr2, str_itr end2)
 	return itr1 - begin1;
 }
 
-int prefix_compare(str_itr itr1, str_itr end1, string& str2)
+int Trie::prefix_compare(str_itr itr1, str_itr end1, string& str2)
 {
 	return prefix_compare(itr1, end1, 
 				str2.begin(), str2.end());
 }
 
-int prefix_compare(string& str1, string& str2)
+int Trie::prefix_compare(string& str1, string& str2)
 {
 	return prefix_compare(str1.begin(), str1.end(),
 						str2.begin(), str2.end());
 }
 
-TriePath::TriePath(Trie& trie): _trie(trie) 
-{
-	state = nullptr;
-}
+TriePath::TriePath(Trie& trie): _trie(trie), state(nullptr) {}
 
 TriePath::~TriePath()
 {
@@ -436,6 +442,24 @@ TriePath::~TriePath()
 	/* } */
 }
 
+vector<string> TriePath::min_keys()
+{
+	vector<string> keys;
+	Node *currNode;
+	for (int i = 0; i < _keys.size(); i++)
+	{
+		currNode = _keys[i]->parent;
+		string key;
+		while (currNode != nullptr)
+		{
+			key.insert(0, currNode->key);
+			currNode = currNode->parent;
+		}
+		keys.push_back(key);
+	}
+	return keys;
+}
+
 string TriePath::lexeme()
 {
 	return string(_lexeme.begin(), _lexeme.end());
@@ -443,13 +467,12 @@ string TriePath::lexeme()
 
 bool TriePath::update_state(char c)
 {
-	c = create_valid_char(c);
-	if (c == ERROR_CHAR)
-	{
+	c = Trie::create_valid_char(c);
+	if (c == ERROR_CHAR) {
 		return false;
 	}
-	int ord = custom_ordinal(c);
 
+	int ord = Trie::custom_ordinal(c);
 	Node* newState = nullptr;
 
 	if (state == nullptr)
@@ -470,14 +493,17 @@ bool TriePath::update_state(char c)
 		newState = state->get(c);
 	}
 
-	if (newState == nullptr)
-	{
+	if (newState == nullptr) {
 		return false;
 	}
+
+	state = newState;
 	currKeyItr = state->key.begin() + 1;
 	currKeyEnd = state->key.end();
-	state = newState;
 	_lexeme.push_back(c);
+	_reset_keys();
+	_reset_search_queue();
+	_find_min_keys();
 
 	return true;
 }
@@ -498,37 +524,32 @@ bool TriePath::update_state(char c)
 
 void TriePath::_find_min_keys()
 {
-	if (state == nullptr)
-	{
+	if (state == nullptr) {
 		return;
 	}
-	
-	if (_searchQ.empty())
-	{
+
+	if (_searchQ.empty()) {
 		_searchQ.push_back(state);
 	}
 
-	if (qDepth != 0)
-	{
+	if (qDepth != 0) {
 		_enqueue_depth();
 	}
 
 	node_vec_itr start, end;
 	Node *currNode;
-
-	while (keys.size() < TRIE_PATH_MIN_KEYS && !_searchQ.empty())
+	while (_keys.size() < TRIE_PATH_MIN_KEYS && !_searchQ.empty())
 	{
 		currNode = _searchQ.front();
 		_searchQ.pop_front();
 
 		start = currNode->children.begin();
-		end = currNode->children.end();
-
-		while (start != end)
+		end = currNode->children.end() - (currNode->has_terminal());
+		while (start < end)
 		{
 			if ((*start)->has_terminal())
 			{
-				keys.push_back(*start);
+				_keys.push_back(*((*start)->children.end()-1));
 			}
 			_searchQ.push_back(*start);
 			start++;
@@ -551,7 +572,7 @@ void TriePath::_enqueue_depth()
 	int _depth = 0;
 	int _depthEnd = 0;
 	Node *currNode;
-	while (_depth < qDepth)
+	while (_depth < qDepth && !_searchQ.empty())
 	{
 		currNode = _searchQ.front();
 		_searchQ.pop_front();
@@ -572,8 +593,11 @@ void TriePath::_enqueue_depth()
 
 void TriePath::_reset_search_queue()
 {
-	qDepth--;
+	if (_searchQ.size() == 0) {
+		return;
+	}
 
+	qDepth--;
 	Node *frontNode = _searchQ.front();
 	for (int i = qDepth; i > 0; i--)
 	{
@@ -590,11 +614,16 @@ void TriePath::_reset_search_queue()
 
 void TriePath::_reset_keys()
 {
+	if (_keys.size() == 0) {
+		return;
+	}
+
 	Node *currNode;
-	for (int i = 0; i < keys.size(); i++)
+	int i = 0;
+	while (i < _keys.size())
 	{
 		bool keep = false;
-		currNode = keys[i];
+		currNode = _keys[i];
 		while (currNode != nullptr)
 		{
 			if (currNode == state)
@@ -604,9 +633,13 @@ void TriePath::_reset_keys()
 			}
 			currNode = currNode->parent;
 		}
+
 		if (!keep)
 		{
-			keys.erase(keys.begin() + i);
+			_keys.erase(_keys.begin() + i);
+			continue;
 		}
+
+		i++;
 	}
 }
