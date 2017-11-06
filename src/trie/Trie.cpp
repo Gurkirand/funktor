@@ -98,7 +98,7 @@ bool Node::remove(Node *node)
 
 bool Node::insert_terminal(string value)
 {
-	int ord = TRIE_BASE_LEN - 1;
+	int ord = TRIE_CHILDREN_LEN - 1;
 	if (bitmap[ord] == 1) {
 		return false;
 	}
@@ -110,7 +110,7 @@ bool Node::insert_terminal(string value)
 
 bool Node::has_terminal()
 {
-	return bitmap[TRIE_BASE_LEN - 1];
+	return bitmap[TRIE_CHILDREN_LEN - 1];
 }
 
 bool Node::compare(Node& node)
@@ -157,7 +157,7 @@ bool Trie::insert(const string& _key, const string value)
 			string sharedPref = string(keyItr, keyItr + pref),
 			       insertSuff = string(keyItr + pref, keyEnd),
 			       currSuff = string(compKey->begin() + pref, compKey->end());
-			_rotation_insertion(sharedPref, insertSuff, value, currNode, currSuff);
+			rotation_insertion(sharedPref, insertSuff, value, currNode, currSuff);
 			return true;
 		}
 		else
@@ -182,7 +182,7 @@ bool Trie::insert(const string& _key, const string value)
 	return true;
 }
 
-void Trie::_rotation_insertion(string& sharedPref,
+void Trie::rotation_insertion(string& sharedPref,
 							   string& insertSuff,
 							   const string& value,
 							   Node* root,
@@ -244,10 +244,10 @@ void Trie::print()
 			baseNodes.push_back(base[i]);
 		}
 	}
-	_print(baseNodes, "");
+	print(baseNodes, "");
 }
 
-void Trie::_print(node_vec nodes, string tabs)
+void Trie::print(node_vec nodes, string tabs)
 {
 	int printIndex;
 	Node *currNode;
@@ -271,9 +271,9 @@ void Trie::_print(node_vec nodes, string tabs)
 		back = node_vec(half, end);
 
 		cout << endl;
-		_print(front, tabs + "\t");
+		print(front, tabs + "\t");
 		cout << tabs << nodes[i]->key << endl;
-		_print(back, tabs + "\t");
+		print(back, tabs + "\t");
 		continue;
 	}
 	return;
@@ -285,7 +285,7 @@ vector<string> Trie::find_keys(Node *node)
 	vector<char> _lexeme(node->key.begin(), node->key.end());
 	stack<NodeVisitor> visited;
 	vector<string> keys;
-	_push_children(visited, node);
+	push_children(visited, node);
 
 	NodeVisitor* currVisit;
 	int i = 0;
@@ -298,7 +298,7 @@ vector<string> Trie::find_keys(Node *node)
 		}
 		else if (!currVisit->visited)
 		{
-			_push_children(visited, currVisit->node);
+			push_children(visited, currVisit->node);
 			copy(currVisit->node->key.begin(),
 					currVisit->node->key.end(),
 					back_inserter(_lexeme));
@@ -327,7 +327,7 @@ vector<string> Trie::find_keys(string pref)
 	return find_keys(node);
 }
 
-void Trie::_push_children(stack<NodeVisitor>& visited, Node *node)
+void Trie::push_children(stack<NodeVisitor>& visited, Node *node)
 {
 	node_vec_itr start = node->children.begin(),
 	             end = node->children.end();
@@ -343,14 +343,14 @@ void Trie::_push_children(stack<NodeVisitor>& visited, Node *node)
 char Trie::create_valid_char(char c)
 {
 	if ((c >= '0' && c <= '9') || 
-			(c >= 'A' && c <= 'Z')
+			(c >= 'a' && c <= 'z')
 			|| c == '$')
 	{
 		return c;
 	}
-	else if (c >= 'a' && c <= 'z')
+	else if (c >= 'A' && c <= 'Z')
 	{
-		return c - 'a' + 'A';
+		return c - 'A' + 'a';
 	}
 	return ERROR_CHAR;
 }
@@ -385,7 +385,7 @@ int Trie::custom_ordinal(const char& c)
 {
 	if (c == '$')
 	{
-		return TRIE_BASE_LEN - 1;
+		return TRIE_CHILDREN_LEN - 1;
 	}
 	else if (c >= 'A' && c <= 'Z')
 	{
@@ -397,7 +397,7 @@ int Trie::custom_ordinal(const char& c)
 	}
 	else if (c >= '0' && c <= '9')
 	{
-		return TRIE_ALPHA_LEN + c - '0';
+		return 26 + c - '0'; //Numbers come after letters, therefore add 26 to ord
 	}
 	return -1;
 }
@@ -431,7 +431,7 @@ int Trie::prefix_compare(string& str1, string& str2)
 						str2.begin(), str2.end());
 }
 
-TriePath::TriePath(Trie& trie): _trie(trie), state(nullptr) {}
+TriePath::TriePath(Trie& trie, int minSearch): trie(trie), search_len(minSearch), state(nullptr) {}
 
 TriePath::~TriePath()
 {
@@ -442,13 +442,13 @@ TriePath::~TriePath()
 	/* } */
 }
 
-vector<string> TriePath::min_keys()
+vector<string> TriePath::keys()
 {
 	vector<string> keys;
 	Node *currNode;
-	for (int i = 0; i < _keys.size(); i++)
+	for (int i = 0; i < key_nodes.size(); i++)
 	{
-		currNode = _keys[i]->parent;
+		currNode = key_nodes[i]->parent;
 		string key;
 		while (currNode != nullptr)
 		{
@@ -477,13 +477,13 @@ bool TriePath::update_state(char c)
 
 	if (state == nullptr)
 	{
-		newState = _trie.base[ord];
+		newState = trie.base[ord];
 	}
-	else if (currKeyItr != currKeyEnd)
+	else if (key_itr != key_end)
 	{
-		if (*currKeyItr == c)
+		if (*key_itr == c)
 		{
-			currKeyItr++;
+			key_itr++;
 			_lexeme.push_back(c);
 			return true;
 		}
@@ -498,12 +498,12 @@ bool TriePath::update_state(char c)
 	}
 
 	state = newState;
-	currKeyItr = state->key.begin() + 1;
-	currKeyEnd = state->key.end();
+	key_itr = state->key.begin() + 1;
+	key_end = state->key.end();
 	_lexeme.push_back(c);
-	_reset_keys();
-	_reset_search_queue();
-	_find_min_keys();
+	reset_key_nodes();
+	reset_search_queue();
+	find_key_nodes();
 
 	return true;
 }
@@ -522,26 +522,26 @@ bool TriePath::update_state(char c)
  * 
  */
 
-void TriePath::_find_min_keys()
+void TriePath::find_key_nodes()
 {
 	if (state == nullptr) {
 		return;
 	}
 
-	if (_searchQ.empty()) {
-		_searchQ.push_back(state);
+	if (search_q.empty()) {
+		search_q.push_back(state);
 	}
 
-	if (qDepth != 0) {
-		_enqueue_depth();
+	if (q_depth != 0) {
+		enqueue_depth();
 	}
 
 	node_vec_itr start, end;
 	Node *currNode;
-	while (_keys.size() < TRIE_PATH_MIN_KEYS && !_searchQ.empty())
+	while (key_nodes.size() < search_len && !search_q.empty())
 	{
-		currNode = _searchQ.front();
-		_searchQ.pop_front();
+		currNode = search_q.front();
+		search_q.pop_front();
 
 		start = currNode->children.begin();
 		end = currNode->children.end() - (currNode->has_terminal());
@@ -549,81 +549,81 @@ void TriePath::_find_min_keys()
 		{
 			if ((*start)->has_terminal())
 			{
-				_keys.push_back(*((*start)->children.end()-1));
+				key_nodes.push_back(*((*start)->children.end()-1));
 			}
-			_searchQ.push_back(*start);
+			search_q.push_back(*start);
 			start++;
 		}
 
-		if (qDepthEnd == 0)
+		if (q_partition == 0)
 		{
-			qDepthEnd = _searchQ.size();
-			qDepth++;
+			q_partition = search_q.size();
+			q_depth++;
 		}
 		else
 		{
-			qDepthEnd--;
+			q_partition--;
 		}
 	}
 }
 
-void TriePath::_enqueue_depth()
+void TriePath::enqueue_depth()
 {
 	int _depth = 0;
-	int _depthEnd = 0;
+	int _partition = 0;
 	Node *currNode;
-	while (_depth < qDepth && !_searchQ.empty())
+	while (_depth < q_depth && !search_q.empty())
 	{
-		currNode = _searchQ.front();
-		_searchQ.pop_front();
+		currNode = search_q.front();
+		search_q.pop_front();
 		copy(currNode->children.begin(),
 				currNode->children.end(),
-				back_inserter(_searchQ));
-		if (_depthEnd == 0)
+				back_inserter(search_q));
+		if (_partition == 0)
 		{
-			_depthEnd = _searchQ.size();
+			_partition = search_q.size();
 			_depth++;
 		}
 		else
 		{
-			_depthEnd--;
+			_partition--;
 		}
 	}
 }
 
-void TriePath::_reset_search_queue()
+void TriePath::reset_search_queue()
 {
-	if (_searchQ.size() == 0) {
+	if (search_q.size() == 0) {
 		return;
 	}
 
-	qDepth--;
-	Node *frontNode = _searchQ.front();
-	for (int i = qDepth; i > 0; i--)
+	q_depth--;
+	Node *frontNode = search_q.front();
+	for (int i = q_depth; i > 0; i--)
 	{
 		frontNode = frontNode->parent;
 	}
 
 	if (frontNode->compare(*state) > 0)
 	{
-		qDepth++;
+		q_depth++;
 	}
 
-	_searchQ.clear();
+	search_q.clear();
 }
 
-void TriePath::_reset_keys()
+void TriePath::reset_key_nodes()
 {
-	if (_keys.size() == 0) {
+	if (key_nodes.size() == 0) {
 		return;
 	}
 
 	Node *currNode;
 	int i = 0;
-	while (i < _keys.size())
+	while (i < key_nodes.size())
 	{
 		bool keep = false;
-		currNode = _keys[i];
+		currNode = key_nodes[i];
 		while (currNode != nullptr)
 		{
 			if (currNode == state)
@@ -636,7 +636,7 @@ void TriePath::_reset_keys()
 
 		if (!keep)
 		{
-			_keys.erase(_keys.begin() + i);
+			key_nodes.erase(key_nodes.begin() + i);
 			continue;
 		}
 

@@ -1,4 +1,7 @@
 *.out
-**bin/
+build/*
+**/bulid/*
+**/bin/*
 *.swp
-lib/flac/
+lib/*
+!lib/MurmurHash3*

@@ -1,7 +1,8 @@
 #include "../include/trie/trie.h"
+#include "../src/util/util.h"
+#include "data/load.h"
 #include <string>
 #include <iostream>
-#include <fstream>
 #include <vector>
 #include <bitset>
 #include <tuple>
@@ -9,35 +10,35 @@
 
 using namespace std;
 
-vector<string> split(string s)
-{
-	int pos;
-	vector<string> splitS;
-	while ((pos = s.find(' ')) != string::npos)
-	{
-		splitS.push_back(s.substr(0, pos));
-		s.erase(0, pos + 1);
-	}
-	return splitS;
-}
+/* vector<string> split(string s) */
+/* { */
+/* 	int pos; */
+/* 	vector<string> splitS; */
+/* 	while ((pos = s.find(' ')) != string::npos) */
+/* 	{ */
+/* 		splitS.push_back(s.substr(0, pos)); */
+/* 		s.erase(0, pos + 1); */
+/* 	} */
+/* 	return splitS; */
+/* } */
 
-vector<string> load_data()
-{
-	vector<string> data;
-	vector<string> splitString;
-	string line;
-	ifstream dataFile("test/data/composers_small.txt");
-	if (dataFile.is_open())
-	{
-		while (getline(dataFile, line))
-		{
-			splitString = split(line);
-			data.insert(data.end(), splitString.begin(), splitString.end());
-		}
-		dataFile.close();
-	}
-	return data;
-}
+/* vector<string> load_data() */
+/* { */
+/* 	vector<string> data; */
+/* 	vector<string> splitString; */
+/* 	string line; */
+/* 	ifstream dataFile("test/data/composers_small.txt"); */
+/* 	if (dataFile.is_open()) */
+/* 	{ */
+/* 		while (getline(dataFile, line)) */
+/* 		{ */
+/* 			splitString = split(line); */
+/* 			data.insert(data.end(), splitString.begin(), splitString.end()); */
+/* 		} */
+/* 		dataFile.close(); */
+/* 	} */
+/* 	return data; */
+/* } */
 
 void test_trie_insert(Trie& trie, vector<string>& keys)
 {
@@ -84,10 +85,21 @@ void test_trie_search(Trie& trie, vector<string>& keys)
 	cout << endl;
 }
 
+
 int main()
 {
 	Trie trie;
-	vector<string> keys = load_data();
+	string dataFile = "data/composers_small.txt";
+	vector<string> values = load_text_file(dataFile);
+	vector<string> keys;
+	vector<string> split;
+	for (vector<string>::iterator itr = values.begin(), end = values.end();
+			itr < end; itr++)
+	{
+		split = gud::split(*itr, ' ');
+		keys.insert(keys.end(), split.begin(), split.end());
+	}
+
 	test_trie_insert(trie, keys);
 	/* test_trie_search(trie, keys); */
 

@@ -9,14 +9,21 @@
 /* #include <tuple> */
 
 //trie/Trie.h
+/* TODO:
+ * Determine whether values are necessary to store in the trie.
+ *  - Most likely they are not. If so simply mark nodes that are terminal, instead of 
+ *      storing a "terminal node".
+ *  - If they are needed, split the node class into regular nodes and terminal nodes.
+ *      This leaves the issue of storing tags with the same word (ex: John Cage vs.
+ *      John Williams, if the search is "john")
+ */
 
 /*
  * Global constants for trie.
  */
-extern const int TRIE_BASE_LEN = 37; //Accepted character length, [a-z0-9$]
-extern const int TRIE_ALPHA_LEN = 26; //Position of last alphabet character + 1
+extern const int TRIE_CHILDREN_LEN = 37; //Accepted character length, [a-z0-9$]
 extern const char TRIE_TERMINAL_CHAR = '$'; //Terminal character to designate leaf nodes in the trie
-extern const int TRIE_PATH_MIN_KEYS = 5; //How many keys to search for
+extern const int TRIE_PATH_MIN_SEARCH_LEN = 5; //How many keys to search for
 
 class Node;
 class Trie;
@@ -32,7 +39,7 @@ class Node
 	public:
 		std::string key;
 		std::string value;
-		std::bitset<TRIE_BASE_LEN> bitmap;
+		std::bitset<TRIE_CHILDREN_LEN> bitmap;
 		node_vec children;
 		Node* parent;
 
@@ -54,7 +61,7 @@ class Node
 class Trie
 {
 	public:
-		Node* base[TRIE_BASE_LEN];
+		Node* base[TRIE_CHILDREN_LEN - 1]; //No need for terminal node
 
 		Trie();
 		~Trie();
@@ -67,10 +74,6 @@ class Trie
 		static char create_valid_char(char c);
 		static std::string create_valid_key(const std::string& key);
 		static int custom_ordinal(const char& c);
-		static int prefix_compare(str_itr itr1, str_itr end1, str_itr itr2, str_itr end2);
-		static int prefix_compare(str_itr itr1, str_itr end1, std::string& str2);
-		static int prefix_compare(std::string& str1, std::string& str2);
-
 
 	private:
 		struct NodeVisitor
@@ -79,37 +82,43 @@ class Trie
 			bool visited;
 		};
 
-		void _print(node_vec nodes, std::string tabs);
-		void _push_children(std::stack<NodeVisitor>& visited, Node *node);
-		void _rotation_insertion(std::string& pivot, std::string&childKey, const std::string& value,
+		void print(node_vec nodes, std::string tabs);
+		void push_children(std::stack<NodeVisitor>& visited, Node *node);
+		void rotation_insertion(std::string& pivot, std::string&childKey, const std::string& value,
 									Node* root, std::string& rootKey);
+
+		static int prefix_compare(str_itr itr1, str_itr end1, str_itr itr2, str_itr end2);
+		static int prefix_compare(str_itr itr1, str_itr end1, std::string& str2);
+		static int prefix_compare(std::string& str1, std::string& str2);
+
 };
 
 
 class TriePath
 {
 	public:
-		TriePath(Trie&);
+		TriePath(Trie& trie, int minSearch = TRIE_PATH_MIN_SEARCH_LEN);
 		~TriePath();
 		Node* state;
-		std::vector<std::string> min_keys();
+		std::vector<std::string> keys();
 		std::string lexeme();
 		bool update_state(char c);
 
 	private:
-		Trie& _trie;
-		str_itr currKeyItr;
-		str_itr currKeyEnd;
+		Trie& trie;
+		str_itr key_itr;
+		str_itr key_end;
 		std::vector<char> _lexeme;
-		std::vector<Node*> _keys;
-		std::deque<Node*> _searchQ;
-		int qDepth;
-		int qDepthEnd;
+		std::vector<Node*> key_nodes;
+		std::deque<Node*> search_q;
+		size_t search_len;
+		size_t q_depth;
+		size_t q_partition;
 
-		void _find_min_keys();
-		void _enqueue_depth();
-		void _reset_search_queue();
-		void _reset_keys();
+		void find_key_nodes();
+		void enqueue_depth();
+		void reset_search_queue();
+		void reset_key_nodes();
 };
 
 class TrieSearch
